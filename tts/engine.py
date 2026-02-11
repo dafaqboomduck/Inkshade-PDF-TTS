@@ -1,7 +1,8 @@
 """
 Piper TTS engine wrapper.
 
-Synthesises text to raw WAV audio with variable speed control.
+Synthesises text to WAV audio with variable speed control via
+Piper's ``length_scale`` parameter.
 """
 
 import io
@@ -12,7 +13,7 @@ from typing import Union
 
 class TTSEngine:
     """
-    Wraps piper-tts for speech synthesis with speed control.
+    Speech synthesis with per-segment speed control.
 
     Usage::
 
@@ -21,6 +22,16 @@ class TTSEngine:
     """
 
     def __init__(self, voice_model_path: Union[str, Path]):
+        """
+        Load a Piper voice model.
+
+        Args:
+            voice_model_path: Path to the ``.onnx`` voice file.
+
+        Raises:
+            FileNotFoundError: If the model file does not exist.
+            ImportError: If ``piper-tts`` is not installed.
+        """
         path = Path(voice_model_path)
         if not path.exists():
             raise FileNotFoundError(f"Voice model not found: {path}")
@@ -29,17 +40,13 @@ class TTSEngine:
             from piper import PiperVoice
         except ImportError:
             raise ImportError(
-                "piper-tts is required.  Install with: pip install piper-tts"
+                "piper-tts is required. Install with: pip install piper-tts"
             )
 
         self._voice = PiperVoice.load(str(path))
         self._sample_rate: int = self._voice.config.sample_rate
         self._sample_width: int = 2  # 16-bit PCM
-        self._channels: int = 1  # mono
-
-    # ------------------------------------------------------------------
-    # Properties
-    # ------------------------------------------------------------------
+        self._channels: int = 1
 
     @property
     def sample_rate(self) -> int:
@@ -53,17 +60,13 @@ class TTSEngine:
     def channels(self) -> int:
         return self._channels
 
-    # ------------------------------------------------------------------
-    # Synthesis
-    # ------------------------------------------------------------------
-
     def synthesize(self, text: str, speed_factor: float = 1.0) -> bytes:
         """
         Synthesise *text* to WAV bytes.
 
         Args:
             text:         Text to speak.
-            speed_factor: Speed multiplier.  >1 = faster, <1 = slower.
+            speed_factor: Speed multiplier (>1 = faster, <1 = slower).
 
         Returns:
             Complete WAV file as bytes (16-bit mono PCM).
@@ -71,11 +74,8 @@ class TTSEngine:
         if not text or not text.strip():
             return self.generate_silence(0.0)
 
-        # Piper length_scale: >1 = slower, <1 = faster
         self._voice.config.length_scale = 1.0 / max(speed_factor, 0.1)
 
-        # synthesize() yields AudioChunk objects (one per sentence).
-        # Each chunk has audio_int16_bytes ready to use.
         pcm_parts = []
         for chunk in self._voice.synthesize(text):
             pcm_parts.append(chunk.audio_int16_bytes)
@@ -83,34 +83,13 @@ class TTSEngine:
         if not pcm_parts:
             return self.generate_silence(0.0)
 
-        pcm_data = b"".join(pcm_parts)
-        return self._wrap_wav(pcm_data)
-
-    # ------------------------------------------------------------------
-    # Silence generation
-    # ------------------------------------------------------------------
+        return self._wrap_wav(b"".join(pcm_parts))
 
     def generate_silence(self, duration_seconds: float) -> bytes:
-        """
-        Generate a WAV file containing silence of the given duration.
-
-        Args:
-            duration_seconds: Length of silence (>= 0).
-
-        Returns:
-            WAV bytes.
-        """
-        if duration_seconds <= 0:
-            num_samples = 0
-        else:
-            num_samples = int(self._sample_rate * duration_seconds)
-
-        pcm_data = b"\x00\x00" * num_samples  # 16-bit zero samples
+        """Generate a WAV file containing *duration_seconds* of silence."""
+        num_samples = int(self._sample_rate * max(0, duration_seconds))
+        pcm_data = b"\x00\x00" * num_samples
         return self._wrap_wav(pcm_data)
-
-    # ------------------------------------------------------------------
-    # Utility
-    # ------------------------------------------------------------------
 
     def get_audio_duration(self, wav_bytes: bytes) -> float:
         """Return the duration in seconds of a WAV byte string."""
