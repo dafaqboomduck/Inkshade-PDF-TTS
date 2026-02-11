@@ -1,6 +1,4 @@
-"""
-PDF document handling for narration pipeline.
-"""
+"""PDF document handling."""
 
 from .pdf_reader import PDFDocumentReader
 

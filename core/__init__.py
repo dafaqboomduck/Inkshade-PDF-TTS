@@ -1,6 +1,6 @@
 """
-Core backend for Inkshade PDF Narration POC.
-Text extraction and page model only — no annotations, selection, search, or Qt.
+Core backend for Inkshade PDF Narration.
+Text extraction and page model — no annotations, selection, search, or Qt.
 """
 
 from .document import PDFDocumentReader
