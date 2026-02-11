@@ -1,24 +1,20 @@
 """
 Data models for document layout detection and block classification.
 
-LayoutLabel corresponds to the 11 DocLayNet classes produced by the
-YOLO detector.  ClassifiedBlock pairs a text BlockInfo with its
-resolved layout label and confidence score.
+``LayoutLabel`` corresponds to the 11 DocLayNet classes produced by the
+YOLO detector.  ``ClassifiedBlock`` pairs a text ``BlockInfo`` with its
+resolved label and confidence score.
 """
 
-from dataclasses import dataclass, field
-from enum import Enum, auto
-from typing import List, Optional, Tuple
+from dataclasses import dataclass
+from enum import Enum
+from typing import Optional, Tuple
 
 from core.page.models import BlockInfo
 
-# ---------------------------------------------------------------------------
-# DocLayNet class index → label mapping (standard across community models)
-# ---------------------------------------------------------------------------
-
 
 class LayoutLabel(Enum):
-    """Document layout element types from DocLayNet."""
+    """Document layout element types (DocLayNet taxonomy)."""
 
     CAPTION = 0
     FOOTNOTE = 1
@@ -31,29 +27,27 @@ class LayoutLabel(Enum):
     TABLE = 8
     TEXT = 9
     TITLE = 10
-
-    # Fallback for blocks not matched by YOLO
     UNKNOWN = -1
 
 
-# Reverse lookup: int → LayoutLabel
 DOCLAYNET_INDEX_TO_LABEL = {
     label.value: label for label in LayoutLabel if label.value >= 0
 }
+"""Reverse lookup: YOLO class index → ``LayoutLabel``."""
 
 
 @dataclass
 class LayoutRegion:
     """
-    A single region detected by the YOLO layout model.
+    A region detected by the YOLO layout model.
 
     Coordinates are in **pixel space** of the rendered page image
-    (i.e. they depend on the render scale).
+    (dependent on the render scale).
     """
 
     label: LayoutLabel
     confidence: float
-    bbox: Tuple[float, float, float, float]  # x0, y0, x1, y1 in pixels
+    bbox: Tuple[float, float, float, float]
 
     @property
     def area(self) -> float:
@@ -65,13 +59,8 @@ class LayoutRegion:
         x0, y0, x1, y1 = self.bbox
         return ((x0 + x1) / 2, (y0 + y1) / 2)
 
-    def to_pdf_coords(
-        self, scale: float, page_width: float, page_height: float
-    ) -> "LayoutRegion":
-        """
-        Return a copy with bbox converted from pixel coords to PDF
-        point coords by dividing by *scale*.
-        """
+    def to_pdf_coords(self, scale: float) -> "LayoutRegion":
+        """Return a copy with bbox converted to PDF point space."""
         x0, y0, x1, y1 = self.bbox
         return LayoutRegion(
             label=self.label,
@@ -93,19 +82,13 @@ class ClassifiedBlock:
     """
     A text block paired with its resolved layout classification.
 
-    This is the primary data structure handed to the reading script
-    builder (Task 4).
+    Primary data structure consumed by the reading script builder.
     """
 
     block: BlockInfo
     label: LayoutLabel
     confidence: float
-
-    # The YOLO region that matched this block (None if classified
-    # purely by typographic features).
     source_region: Optional[LayoutRegion] = None
-
-    # Set by the feature refiner when it overrides the YOLO label
     refined: bool = False
 
     @property

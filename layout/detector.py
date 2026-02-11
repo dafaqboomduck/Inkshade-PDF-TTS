@@ -5,6 +5,7 @@ Wraps ultralytics YOLO to detect document layout regions (title,
 heading, body text, footnotes, tables, etc.) from rendered page images.
 """
 
+import logging
 from pathlib import Path
 from typing import List, Optional, Union
 
@@ -14,7 +15,8 @@ from ultralytics import YOLO
 
 from .models import DOCLAYNET_INDEX_TO_LABEL, LayoutLabel, LayoutRegion
 
-# Default model path relative to project root
+logger = logging.getLogger(__name__)
+
 _DEFAULT_MODEL_PATH = (
     Path(__file__).resolve().parents[2] / "models" / "yolov8x_doclaynet.pt"
 )
@@ -40,10 +42,13 @@ class LayoutDetector:
         Load the YOLO model.
 
         Args:
-            model_path: Path to the ``.pt`` weights file.  Falls back to
+            model_path: Path to ``.pt`` weights.  Defaults to
                         ``models/yolov8x_doclaynet.pt`` in the project root.
             device:     Force a device (``"cpu"``, ``"cuda:0"``, …).
-                        ``None`` lets ultralytics pick automatically.
+                        ``None`` lets ultralytics auto-select.
+
+        Raises:
+            FileNotFoundError: If the weights file does not exist.
         """
         path = Path(model_path) if model_path else _DEFAULT_MODEL_PATH
         if not path.exists():
@@ -54,14 +59,8 @@ class LayoutDetector:
 
         self.model = YOLO(str(path), task="detect")
         self.device = device
-
-        # Verify the model has the expected DocLayNet classes
-        self._class_map = self.model.names  # {0: 'Caption', 1: 'Footnote', …}
+        self._class_map = self.model.names
         self._validate_classes()
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     def detect(
         self,
@@ -76,12 +75,11 @@ class LayoutDetector:
         Args:
             image:          PIL Image (RGB) of the rendered PDF page.
             confidence:     Minimum confidence to keep a detection.
-            iou_threshold:  IoU threshold for NMS (non-max suppression).
-            image_size:     Inference resolution (longer side). Larger
-                            values are slower but catch small elements.
+            iou_threshold:  IoU threshold for NMS.
+            image_size:     Inference resolution (longer side).
 
         Returns:
-            List of ``LayoutRegion`` sorted top-to-bottom by bbox y0.
+            List of ``LayoutRegion`` sorted top-to-bottom, left-to-right.
         """
         results = self.model.predict(
             source=image,
@@ -93,19 +91,13 @@ class LayoutDetector:
         )
 
         regions: List[LayoutRegion] = []
-
         if not results or len(results) == 0:
             return regions
 
-        result = results[0]
-        boxes = result.boxes
-
+        boxes = results[0].boxes
         if boxes is None or len(boxes) == 0:
             return regions
 
-        # boxes.xyxy  → Tensor[N, 4]  (pixel coords)
-        # boxes.conf  → Tensor[N]
-        # boxes.cls   → Tensor[N]
         coords = boxes.xyxy.cpu().numpy()
         confs = boxes.conf.cpu().numpy()
         classes = boxes.cls.cpu().numpy().astype(int)
@@ -125,13 +117,8 @@ class LayoutDetector:
                 )
             )
 
-        # Sort top-to-bottom, then left-to-right
         regions.sort(key=lambda r: (r.bbox[1], r.bbox[0]))
         return regions
-
-    # ------------------------------------------------------------------
-    # Debug / visualisation
-    # ------------------------------------------------------------------
 
     def detect_and_annotate(
         self,
@@ -140,10 +127,7 @@ class LayoutDetector:
         iou_threshold: float = 0.45,
         image_size: int = 1024,
     ) -> Image.Image:
-        """
-        Run detection and return the image with bounding boxes drawn by
-        ultralytics (handy for quick visual checks).
-        """
+        """Run detection and return the image with bounding boxes drawn."""
         results = self.model.predict(
             source=image,
             conf=confidence,
@@ -154,31 +138,22 @@ class LayoutDetector:
         )
         if results:
             annotated = results[0].plot(pil=True)
-            return Image.fromarray(annotated[..., ::-1])  # BGR → RGB
+            return Image.fromarray(annotated[..., ::-1])
         return image
 
-    # ------------------------------------------------------------------
-    # Internals
-    # ------------------------------------------------------------------
-
     def _resolve_label(self, cls_id: int) -> LayoutLabel:
-        """Map a YOLO class index to a LayoutLabel."""
+        """Map a YOLO class index to a ``LayoutLabel``."""
         if cls_id in DOCLAYNET_INDEX_TO_LABEL:
             return DOCLAYNET_INDEX_TO_LABEL[cls_id]
 
-        # Fallback: try matching the name string from the model
         name = self._class_map.get(cls_id, "").lower().replace("-", "_")
         for label in LayoutLabel:
             if label.name.lower() == name:
                 return label
-
         return LayoutLabel.UNKNOWN
 
     def _validate_classes(self) -> None:
-        """
-        Warn (but don't crash) if the model's class names don't look
-        like DocLayNet labels.
-        """
+        """Log a warning if the model's classes don't match DocLayNet."""
         expected = {
             "caption",
             "footnote",
@@ -195,10 +170,7 @@ class LayoutDetector:
         model_names = {v.lower() for v in self._class_map.values()}
         missing = expected - model_names
         if missing:
-            print(
-                f"[LayoutDetector] Warning: model is missing expected "
-                f"DocLayNet classes: {missing}"
-            )
+            logger.warning("Model is missing expected DocLayNet classes: %s", missing)
 
     def __repr__(self) -> str:
         n = len(self._class_map)

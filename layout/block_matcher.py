@@ -2,7 +2,7 @@
 Maps YOLO layout regions to text-layer BlockInfo objects.
 
 The detector works in pixel space (rendered image) while BlockInfo
-bounding boxes are in PDF point space.  This module handles coordinate
+bounding boxes live in PDF point space.  This module handles coordinate
 conversion and IoU-based assignment.
 """
 
@@ -11,10 +11,6 @@ from typing import List, Tuple
 from core.page.models import BlockInfo
 
 from .models import ClassifiedBlock, LayoutLabel, LayoutRegion
-
-# ---------------------------------------------------------------------------
-# Geometry helpers
-# ---------------------------------------------------------------------------
 
 
 def _bbox_intersection(
@@ -51,31 +47,17 @@ def compute_overlap_ratio(
     block_bbox: Tuple[float, float, float, float],
     region_bbox: Tuple[float, float, float, float],
 ) -> float:
-    """
-    Fraction of *block_bbox* area covered by *region_bbox*.
-
-    This is more useful than IoU when a large YOLO region spans
-    several small text blocks — each block may have low IoU but
-    high overlap ratio.
-    """
+    """Fraction of *block_bbox* area covered by *region_bbox*."""
     inter = _bbox_intersection(block_bbox, region_bbox)
     area = _bbox_area(block_bbox)
     return inter / area if area > 0 else 0.0
-
-
-# ---------------------------------------------------------------------------
-# Coordinate conversion
-# ---------------------------------------------------------------------------
 
 
 def regions_to_pdf_coords(
     regions: List[LayoutRegion],
     scale: float,
 ) -> List[LayoutRegion]:
-    """
-    Convert all region bboxes from pixel space to PDF point space
-    by dividing by *scale* (the render scale used for the page image).
-    """
+    """Convert region bboxes from pixel space to PDF point space."""
     return [
         LayoutRegion(
             label=r.label,
@@ -91,11 +73,6 @@ def regions_to_pdf_coords(
     ]
 
 
-# ---------------------------------------------------------------------------
-# Matching
-# ---------------------------------------------------------------------------
-
-
 def match_regions_to_blocks(
     regions: List[LayoutRegion],
     blocks: List[BlockInfo],
@@ -106,30 +83,27 @@ def match_regions_to_blocks(
     """
     Assign a layout label to each text block based on YOLO detections.
 
-    The algorithm uses a two-pass strategy:
+    Uses a two-pass strategy:
 
-    1. **IoU pass** – for each block, find the region with the highest
-       IoU.  If it exceeds *iou_threshold* the block gets that label.
-    2. **Overlap pass** – for blocks still unmatched, check if a region
-       covers more than *overlap_threshold* of the block's area.  This
-       catches small blocks inside large YOLO regions (common for
-       list items, captions, footnotes).
+    1. **IoU pass** — each block gets the label of the region with the
+       highest IoU, provided it exceeds *iou_threshold*.
+    2. **Overlap pass** — unmatched blocks are assigned the label of the
+       region covering the largest fraction of the block's area (above
+       *overlap_threshold*), with a slight confidence penalty.
 
-    Blocks with no match get ``LayoutLabel.UNKNOWN`` and confidence 0.
+    Blocks with no match receive ``LayoutLabel.UNKNOWN``.
 
     Args:
         regions:           Detected layout regions (pixel coords).
-        blocks:            Text blocks from PageTextLayer (PDF coords).
+        blocks:            Text blocks from ``PageTextLayer`` (PDF coords).
         scale:             Render scale used to produce the page image.
-        iou_threshold:     Minimum IoU for a match in pass 1.
+        iou_threshold:     Minimum IoU for pass 1.
         overlap_threshold: Minimum block-overlap ratio for pass 2.
 
     Returns:
         One ``ClassifiedBlock`` per input block, in the same order.
     """
-    # Convert regions to PDF coordinate space once
     pdf_regions = regions_to_pdf_coords(regions, scale)
-
     classified: List[ClassifiedBlock] = []
 
     for block in blocks:
@@ -149,7 +123,6 @@ def match_regions_to_blocks(
                 best_overlap = overlap
                 best_region_overlap = (region, orig_region)
 
-        # Pass 1: IoU match
         if best_iou >= iou_threshold and best_region_iou is not None:
             region, orig = best_region_iou
             classified.append(
@@ -162,20 +135,18 @@ def match_regions_to_blocks(
             )
             continue
 
-        # Pass 2: overlap match
         if best_overlap >= overlap_threshold and best_region_overlap is not None:
             region, orig = best_region_overlap
             classified.append(
                 ClassifiedBlock(
                     block=block,
                     label=region.label,
-                    confidence=region.confidence * 0.9,  # slight penalty
+                    confidence=region.confidence * 0.9,
                     source_region=orig,
                 )
             )
             continue
 
-        # No match
         classified.append(
             ClassifiedBlock(
                 block=block,
