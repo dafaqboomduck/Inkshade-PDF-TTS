@@ -72,9 +72,9 @@ sudo pacman -S ffmpeg
 
 ### Model Setup
 
-The pipeline requires a YOLOv8 model trained on the DocLayNet dataset. Place the weights file at `models/yolov8x_doclaynet.pt` (the default path), or specify a custom path with `--yolo-model`.
+The pipeline requires a YOLOv8 model trained on the DocLayNet dataset. If the model weights are not found at the default path (`models/yolov8x_doclaynet.pt`), they are **automatically downloaded from HuggingFace** (~137 MB) on first run — no manual setup required.
 
-Several community-trained models are available on HuggingFace — search for `doclaynet yolov8`. Alternatively, fine-tune your own on the [DocLayNet dataset](https://github.com/DS4SD/DocLayNet) provided by IBM.
+To use a custom model instead, specify the path with `--yolo-model`.
 
 ### Voice Setup
 
