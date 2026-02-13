@@ -3,9 +3,13 @@ YOLOv8 DocLayNet layout detector.
 
 Wraps ultralytics YOLO to detect document layout regions (title,
 heading, body text, footnotes, tables, etc.) from rendered page images.
+
+If the model weights are not found locally, they are automatically
+downloaded from HuggingFace.
 """
 
 import logging
+import urllib.request
 from pathlib import Path
 from typing import List, Optional, Union
 
@@ -17,9 +21,43 @@ from .models import DOCLAYNET_INDEX_TO_LABEL, LayoutLabel, LayoutRegion
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL_PATH = (
-    Path(__file__).resolve().parents[2] / "models" / "yolov8x_doclaynet.pt"
+_DEFAULT_MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
+_DEFAULT_MODEL_NAME = "yolov8x_doclaynet.pt"
+_DEFAULT_MODEL_PATH = _DEFAULT_MODEL_DIR / _DEFAULT_MODEL_NAME
+
+# HuggingFace download URL (DILHTWD, 137 MB)
+_HF_MODEL_URL = (
+    "https://huggingface.co/DILHTWD/"
+    "documentlayoutsegmentation_YOLOv8_ondoclaynet/resolve/main/"
+    "yolov8x-doclaynet-epoch64-imgsz640-initiallr1e-4-finallr1e-5.pt"
 )
+
+
+def _download_model(url: str, dest: Path) -> None:
+    """Download the YOLO model weights with progress reporting."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    logger.info("Downloading layout model to %s ...", dest)
+    logger.info("  URL: %s", url)
+
+    def _progress(block_num, block_size, total_size):
+        if total_size > 0:
+            pct = min(100, block_num * block_size * 100 // total_size)
+            size_mb = total_size / (1024 * 1024)
+            print(
+                f"\r  Progress: {pct}% of {size_mb:.1f} MB",
+                end="",
+                flush=True,
+            )
+
+    try:
+        urllib.request.urlretrieve(url, str(dest), reporthook=_progress)
+        print()  # newline after progress
+        logger.info("Download complete: %s", dest)
+    except Exception as e:
+        # Clean up partial download
+        if dest.exists():
+            dest.unlink()
+        raise RuntimeError(f"Failed to download layout model from {url}: {e}") from e
 
 
 class LayoutDetector:
@@ -27,9 +65,12 @@ class LayoutDetector:
     Detects document layout regions using a YOLOv8 model trained on
     DocLayNet.
 
+    If the model weights are not found at the expected path, they are
+    automatically downloaded from HuggingFace (~137 MB).
+
     Usage::
 
-        detector = LayoutDetector("models/yolov8x_doclaynet.pt")
+        detector = LayoutDetector()
         regions = detector.detect(pil_image)
     """
 
@@ -39,23 +80,28 @@ class LayoutDetector:
         device: Optional[str] = None,
     ):
         """
-        Load the YOLO model.
+        Load the YOLO model, downloading if necessary.
 
         Args:
             model_path: Path to ``.pt`` weights.  Defaults to
-                        ``models/yolov8x_doclaynet.pt`` in the project root.
+                        ``models/yolov8x-doclaynet.pt`` in the project root.
             device:     Force a device (``"cpu"``, ``"cuda:0"``, …).
                         ``None`` lets ultralytics auto-select.
 
         Raises:
-            FileNotFoundError: If the weights file does not exist.
+            RuntimeError: If the download fails.
         """
         path = Path(model_path) if model_path else _DEFAULT_MODEL_PATH
+
         if not path.exists():
-            raise FileNotFoundError(
-                f"YOLO model not found at {path}. "
-                "Download a DocLayNet model and place it there."
-            )
+            # Also check hyphen-style name for backward compat
+            alt = path.parent / path.name.replace("_", "-")
+            if alt.exists():
+                path = alt
+            else:
+                logger.info("Model not found at %s", path)
+                _download_model(_HF_MODEL_URL, _DEFAULT_MODEL_PATH)
+                path = _DEFAULT_MODEL_PATH
 
         self.model = YOLO(str(path), task="detect")
         self.device = device
