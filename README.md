@@ -26,16 +26,16 @@ PDF ──► Page Rendering ──► YOLO Layout Detection ──► Block Cla
 
 ```bash
 # Basic narration — produces paper.mp3
-python narrate.py paper.pdf paper.mp3
+narrate paper.pdf paper.mp3
 
 # Narrate pages 1–12 at 1.1x speed
-python narrate.py book.pdf chapter1.mp3 --pages 1-12 --speed 1.1
+narrate book.pdf chapter1.mp3 --pages 1-12 --speed 1.1
 
 # Preview the reading script without generating audio
-python narrate.py report.pdf --debug-script --pages 1-5
+narrate report.pdf --debug-script --pages 1-5
 
 # Save layout debug images for visual review
-python narrate.py paper.pdf --debug-layout debug/paper/ -v 2
+narrate paper.pdf --debug-layout debug/paper/ -v 2
 ```
 
 ## Installation
@@ -45,11 +45,17 @@ python narrate.py paper.pdf --debug-layout debug/paper/ -v 2
 - Python 3.10+
 - A YOLOv8 model trained on DocLayNet (see [Model Setup](#model-setup))
 
-### Dependencies
+### Install
+
+Clone the repository and install with pip:
 
 ```bash
-pip install pymupdf pillow ultralytics piper-tts pydub numpy tqdm
+git clone https://github.com/dafaqboomduck/Inkshade-PDF-TTS.git
+cd Inkshade-PDF-TTS
+pip install .
 ```
+
+This installs the package along with all required dependencies and makes the `narrate` command available globally on your system.
 
 **FFmpeg** is required by pydub for MP3 export:
 
@@ -84,7 +90,7 @@ Piper voice models are downloaded automatically on first use. The default voice 
 
 ```bash
 # List cached and downloadable voices
-python narrate.py --list-voices
+narrate --list-voices
 ```
 
 Voice models are cached in `~/.local/share/InkshadePDF/voices/`.
@@ -92,7 +98,7 @@ Voice models are cached in `~/.local/share/InkshadePDF/voices/`.
 ## CLI Reference
 
 ```
-python narrate.py input.pdf [output.mp3] [options]
+narrate input.pdf [output.mp3] [options]
 ```
 
 ### Voice
