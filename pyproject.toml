@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "inkshade-narrate"
+version = "0.1.0"
+description = "Convert PDF documents into narrated audio using layout detection and TTS"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pillow==12.1.1",
+    "piper-tts==1.4.1",
+    "pydub==0.25.1",
+    "PyMuPDF==1.26.6",
+    "tqdm==4.67.3",
+    "ultralytics==8.4.14",
+]
+
+[project.scripts]
+narrate = "narrate:main"
+
+[tool.setuptools]
+py-modules = ["narrate"]
+packages = ["core", "core.document", "core.page",
+            "narration", "narration.layout", "narration.script",
+            "narration.tts", "narration.utils"]
