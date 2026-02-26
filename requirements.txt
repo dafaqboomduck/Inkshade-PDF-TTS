@@ -1,6 +1,7 @@
+kokoro>=0.9.2
 pillow==12.1.1
-piper-tts==1.4.1
 pydub==0.25.1
 PyMuPDF==1.26.6
+soundfile>=0.13.0
 tqdm==4.67.3
 ultralytics==8.4.14
