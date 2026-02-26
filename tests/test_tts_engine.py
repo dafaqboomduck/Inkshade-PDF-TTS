@@ -1,19 +1,15 @@
 """
-Test the TTS engine and model manager (Task 5.3).
-
-Downloads voice if needed, synthesises test phrases at different
-speeds, saves WAV files, and prints timing info.
+Test the Kokoro TTS engine (synthesise test phrases at different speeds).
 
 Usage:
-    python -m tests.test_tts_engine [--voice en_US-lessac-medium]
+    python -m tests.test_tts_engine [--voice af_heart] [--lang a]
 """
 
 import argparse
 import time
 from pathlib import Path
 
-from narration.tts.engine import TTSEngine
-from narration.tts.model_manager import ModelManager
+from narration.tts.kokoro_engine import KokoroEngine, KOKORO_VOICES
 
 TEST_PHRASES = [
     ("title", 0.85, "Introduction to Machine Learning"),
@@ -29,20 +25,12 @@ TEST_PHRASES = [
 ]
 
 
-def run(voice_name: str):
+def run(voice: str, lang_code: str):
     out_dir = Path("debug") / "tts"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Ensure voice is available
-    mgr = ModelManager()
-    print(f"Model manager: {mgr}")
-    print(f"Cached voices: {mgr.list_available_voices()}\n")
-
-    voice_path = mgr.ensure_voice_available(voice_name)
-    print(f"Using voice: {voice_path}\n")
-
     # Load engine
-    engine = TTSEngine(voice_path)
+    engine = KokoroEngine(voice=voice, lang_code=lang_code)
     print(f"Engine: {engine}\n")
 
     # Synthesise test phrases
@@ -85,14 +73,20 @@ def run(voice_name: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Test TTS engine")
+    parser = argparse.ArgumentParser(description="Test Kokoro TTS engine")
     parser.add_argument(
         "--voice",
-        default="en_US-lessac-medium",
-        help="Piper voice name (default: en_US-lessac-medium)",
+        default="af_heart",
+        help="Kokoro voice ID (default: af_heart)",
+    )
+    parser.add_argument(
+        "--lang",
+        default="a",
+        choices=["a", "b"],
+        help="Language code: 'a' American, 'b' British (default: a)",
     )
     args = parser.parse_args()
-    run(args.voice)
+    run(args.voice, args.lang)
 
 
 if __name__ == "__main__":

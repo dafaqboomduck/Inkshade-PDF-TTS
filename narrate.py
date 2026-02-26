@@ -3,12 +3,13 @@
 Inkshade PDF Narration — CLI entry point.
 
 Converts a PDF document into a narrated MP3 (or WAV) audio file using
-ML-based layout detection and prosody-aware TTS synthesis.
+ML-based layout detection and Kokoro neural TTS synthesis.
 
 Usage::
 
     python narrate.py input.pdf output.mp3
     python narrate.py book.pdf ch1.mp3 --pages 1-12 --speed 1.1
+    python narrate.py input.pdf out.mp3 --voice af_heart --lang a
     python narrate.py report.pdf --debug-script --pages 1-5
     python narrate.py paper.pdf --debug-layout debug/paper/ -v 2
 
@@ -92,13 +93,19 @@ def _build_parser() -> argparse.ArgumentParser:
     voice = p.add_argument_group("voice")
     voice.add_argument(
         "--voice",
-        default="en_US-lessac-medium",
-        help="Piper voice name (default: en_US-lessac-medium)",
+        default="af_heart",
+        help="Kokoro voice ID (default: af_heart). Use --list-voices to see all.",
+    )
+    voice.add_argument(
+        "--lang",
+        default="a",
+        choices=["a", "b"],
+        help="Language code: 'a' American English, 'b' British English (default: a)",
     )
     voice.add_argument(
         "--list-voices",
         action="store_true",
-        help="List available and downloadable voices, then exit",
+        help="List available Kokoro voices, then exit",
     )
 
     # -- Pages -------------------------------------------------------------
@@ -259,7 +266,7 @@ def _configure_logging(verbosity: int, disable_tqdm: bool) -> None:
     root.addHandler(handler)
 
     # Suppress noisy third-party loggers regardless of verbosity
-    for name in ("ultralytics", "piper", "PIL", "urllib3"):
+    for name in ("ultralytics", "kokoro", "PIL", "urllib3"):
         logging.getLogger(name).setLevel(logging.WARNING)
 
 
@@ -268,27 +275,25 @@ def _configure_logging(verbosity: int, disable_tqdm: bool) -> None:
 # ------------------------------------------------------------------
 
 
-def _cmd_list_voices(voice_name: str) -> None:
-    """Print cached and downloadable voices, then exit."""
-    from narration.tts.model_manager import ModelManager
+def _cmd_list_voices() -> None:
+    """Print available Kokoro voices, then exit."""
+    from narration.tts.model_manager import KOKORO_VOICES, ModelManager
 
-    mgr = ModelManager()
-    cached = mgr.list_available_voices()
-    known = mgr.list_known_voices()
-
-    logger.info("Cached voices (ready to use):")
-    if cached:
-        for v in cached:
-            logger.info("  %s", v)
-    else:
-        logger.info("  (none)")
-
-    logger.info("\nDownloadable voices:")
-    for v in known:
-        tag = " [cached]" if v in cached else ""
-        logger.info("  %s%s", v, tag)
-
-    logger.info("\nUse --voice NAME to select. Default: %s", voice_name)
+    logger.info("Available Kokoro voices (auto-download on first use):")
+    logger.info("")
+    logger.info("  %-15s %-10s %-8s %s", "ID", "ACCENT", "GENDER", "NAME")
+    logger.info("  %-15s %-10s %-8s %s", "-" * 15, "-" * 10, "-" * 8, "-" * 10)
+    for voice_id, info in KOKORO_VOICES.items():
+        logger.info(
+            "  %-15s %-10s %-8s %s",
+            voice_id,
+            info["accent"],
+            info["gender"],
+            info["name"],
+        )
+    logger.info("")
+    logger.info("Use --voice ID to select. Default: af_heart")
+    logger.info("Use --lang a/b for American/British accent.")
 
 
 # ------------------------------------------------------------------
@@ -332,7 +337,7 @@ def main():
 
     # --list-voices exits early
     if args.list_voices:
-        _cmd_list_voices(args.voice)
+        _cmd_list_voices()
         return
 
     # Validate input file
@@ -355,7 +360,8 @@ def main():
 
     # Build pipeline config
     config = NarrationConfig(
-        voice_name=args.voice,
+        kokoro_voice=args.voice,
+        kokoro_lang_code=args.lang,
         yolo_model_path=args.yolo_model,
         yolo_device=args.yolo_device,
         yolo_confidence=args.confidence,
@@ -380,7 +386,7 @@ def main():
     if config.page_range:
         s, e = config.page_range
         logger.info("  Pages:  %d–%d", s + 1, e + 1)
-    logger.info("  Voice:  %s", config.voice_name)
+    logger.info("  Voice:  %s (lang=%s)", config.kokoro_voice, config.kokoro_lang_code)
     if config.speed_multiplier != 1.0:
         logger.info("  Speed:  %.2fx", config.speed_multiplier)
     if config.pause_multiplier != 1.0:

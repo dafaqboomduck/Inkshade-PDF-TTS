@@ -1,19 +1,18 @@
 """
-Test the audio builder (Task 6.5).
+Test the audio builder with Kokoro TTS engine.
 
 Synthesises a few phrases, assembles them with silence gaps,
-normalizes, and exports as both WAV and MP3.
+enhances, normalizes, and exports as both WAV and MP3.
 
 Usage:
-    python -m tests.test_audio_builder [--voice en_US-lessac-medium]
+    python -m tests.test_audio_builder [--voice af_heart] [--lang a]
 """
 
 import argparse
 from pathlib import Path
 
 from narration.tts.audio_builder import AudioBuilder
-from narration.tts.engine import TTSEngine
-from narration.tts.model_manager import ModelManager
+from narration.tts.kokoro_engine import KokoroEngine
 
 SEGMENTS = [
     (1.5, 0.85, "Introduction to Machine Learning."),
@@ -41,13 +40,11 @@ SEGMENTS = [
 ]
 
 
-def run(voice_name: str):
+def run(voice: str, lang_code: str):
     out_dir = Path("debug") / "audio"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    mgr = ModelManager()
-    voice_path = mgr.ensure_voice_available(voice_name)
-    engine = TTSEngine(voice_path)
+    engine = KokoroEngine(voice=voice, lang_code=lang_code)
 
     print(f"Engine: {engine}\n")
     print("Assembling audio...\n")
@@ -72,7 +69,8 @@ def run(voice_name: str):
     print(f"\nRaw duration: {builder.get_duration():.1f}s")
 
     # Post-process
-    builder.normalize(target_dBFS=-20.0)
+    builder.enhance()
+    builder.normalize(target_dBFS=-18.0)
     builder.apply_crossfade(ms=30)
 
     print(f"After processing: {builder.get_duration():.1f}s\n")
@@ -89,11 +87,17 @@ def main():
     parser = argparse.ArgumentParser(description="Test audio builder")
     parser.add_argument(
         "--voice",
-        default="en_US-lessac-medium",
-        help="Piper voice name (default: en_US-lessac-medium)",
+        default="af_heart",
+        help="Kokoro voice ID (default: af_heart)",
+    )
+    parser.add_argument(
+        "--lang",
+        default="a",
+        choices=["a", "b"],
+        help="Language code: 'a' American, 'b' British (default: a)",
     )
     args = parser.parse_args()
-    run(args.voice)
+    run(args.voice, args.lang)
 
 
 if __name__ == "__main__":
