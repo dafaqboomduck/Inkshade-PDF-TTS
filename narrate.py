@@ -22,6 +22,7 @@ Verbosity levels::
 
 import argparse
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -85,7 +86,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "output",
         nargs="?",
         default=None,
-        help="Output audio file (.mp3 or .wav). "
+        help="Output audio file (.mp3 or .wav), or a page range (e.g. 131-168). "
         "Optional when using --debug-script or --debug-layout.",
     )
 
@@ -339,6 +340,17 @@ def main():
     if args.list_voices:
         _cmd_list_voices()
         return
+
+    # If the second positional looks like a page range (e.g. "131-168" or "5")
+    # rather than an output filename, treat it as --pages instead.
+    if args.output and re.fullmatch(r"\d+(-\d+)?", args.output):
+        if args.pages is not None:
+            parser.error(
+                f"Ambiguous: '{args.output}' looks like a page range but --pages "
+                f"was also specified. Use an explicit output path."
+            )
+        args.pages = _parse_page_range(args.output)
+        args.output = None
 
     # Validate input file
     input_path = Path(args.input)
