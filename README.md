@@ -9,7 +9,7 @@ The pipeline analyses document structure — titles, headings, body text, footno
 ```
 PDF ──► Page Rendering ──► YOLO Layout Detection ──► Block Classification
                                                             │
-        MP3/WAV ◄── Audio Assembly ◄── Piper TTS ◄── Reading Script
+        MP3/WAV ◄── Audio Assembly ◄── Kokoro TTS ◄── Reading Script
 ```
 
 1. **Layout Detection** — Each page is rendered to an image and fed through a YOLOv8 model trained on [DocLayNet](https://github.com/DS4SD/DocLayNet) to detect structural regions (titles, headings, body, footnotes, tables, figures, page headers/footers).
@@ -18,7 +18,7 @@ PDF ──► Page Rendering ──► YOLO Layout Detection ──► Block Cla
 
 3. **Reading Script** — Classified blocks are converted into an ordered sequence of reading instructions with prosody annotations. Body text is split into sentences. Each instruction carries a semantic role that maps to tuneable pause durations and speed factors. Page numbers, headers, footers, tables, figures, and formulas are skipped.
 
-4. **TTS Synthesis** — Each instruction is synthesised to audio via [Piper](https://github.com/rhasspy/piper), a fast local neural TTS engine. Per-role speed factors produce slower, more deliberate delivery for titles and headings, normal pace for body text, and slightly faster reading for footnotes.
+4. **TTS Synthesis** — Each instruction is synthesised to audio via [Kokoro](https://github.com/hexgrad/kokoro), a fast local neural TTS engine. Per-role speed factors produce slower, more deliberate delivery for titles and headings, normal pace for body text, and slightly faster reading for footnotes.
 
 5. **Audio Assembly** — Speech chunks and silence gaps are concatenated, volume-normalised, and exported as MP3 or WAV.
 
@@ -30,6 +30,9 @@ narrate paper.pdf paper.mp3
 
 # Narrate pages 1–12 at 1.1x speed
 narrate book.pdf chapter1.mp3 --pages 1-12 --speed 1.1
+
+# Use a specific voice
+narrate paper.pdf paper.mp3 --voice bm_george --lang b
 
 # Preview the reading script without generating audio
 narrate report.pdf --debug-script --pages 1-5
@@ -43,21 +46,50 @@ narrate paper.pdf --debug-layout debug/paper/ -v 2
 ### Requirements
 
 - Python 3.10+
-- A YOLOv8 model trained on DocLayNet (see [Model Setup](#model-setup))
+- FFmpeg (for MP3 export)
+- A YOLOv8 model trained on DocLayNet (auto-downloaded on first run — see [Model Setup](#model-setup))
+
+### PyTorch — CPU or CUDA
+
+Both `kokoro` and `ultralytics` depend on PyTorch. By default pip pulls the
+PyPI `torch` wheel, which bundles CUDA runtime libraries (~2 GB) even on
+machines without a GPU. Install torch **before** installing this package to
+avoid that:
+
+```bash
+# CPU only (no CUDA, much smaller install)
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# CUDA 12.1
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# CUDA 11.8
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu118
+```
 
 ### Install
 
-Clone the repository and install with pip:
+Clone the repository and install:
 
 ```bash
 git clone https://github.com/dafaqboomduck/Inkshade-PDF-TTS.git
 cd Inkshade-PDF-TTS
+
+# After pre-installing torch above:
 pip install .
+
+# Or, to explicitly pull in CUDA torch as part of the install:
+pip install .[cuda]
 ```
 
-This installs the package along with all required dependencies and makes the `narrate` command available globally on your system.
+`pip install .` covers all non-torch dependencies. `.[cuda]` additionally
+pins `torch>=2.0.0` and `torchaudio>=2.0.0` — useful if you want the extras
+to document the CUDA requirement, but you still need to point pip at the right
+wheel index (see above).
 
-**FFmpeg** is required by pydub for MP3 export:
+### FFmpeg
+
+Required by pydub for MP3 export:
 
 ```bash
 # Ubuntu / Debian
@@ -74,26 +106,32 @@ sudo pacman -S ffmpeg
 
 The pipeline requires a YOLOv8 model trained on the DocLayNet dataset. If the model weights are not found at the default path (`models/yolov8x_doclaynet.pt`), they are **automatically downloaded from HuggingFace** (~137 MB) on first run — no manual setup required.
 
-To use a custom model instead, specify the path with `--yolo-model`.
+To use a custom model, pass its path with `--yolo-model`.
 
 ### Voice Setup
 
-Piper voice models are downloaded automatically on first use. The default voice is `en_US-lessac-medium`. Available voices:
-
-| Voice | Language | Quality |
-|---|---|---|
-| `en_US-lessac-medium` | English (US) | Medium |
-| `en_US-lessac-high` | English (US) | High |
-| `en_US-amy-medium` | English (US) | Medium |
-| `en_US-ryan-medium` | English (US) | Medium |
-| `en_GB-alan-medium` | English (GB) | Medium |
+Kokoro voice models are downloaded automatically on first use. The default voice is `af_heart`.
 
 ```bash
-# List cached and downloadable voices
+# List all available voices
 narrate --list-voices
 ```
 
-Voice models are cached in `~/.local/share/InkshadePDF/voices/`.
+| ID | Accent | Gender | Name |
+|---|---|---|---|
+| `af_heart` | American | Female | Heart |
+| `af_bella` | American | Female | Bella |
+| `af_nicole` | American | Female | Nicole |
+| `af_sarah` | American | Female | Sarah |
+| `af_sky` | American | Female | Sky |
+| `am_adam` | American | Male | Adam |
+| `am_michael` | American | Male | Michael |
+| `bf_emma` | British | Female | Emma |
+| `bf_isabella` | British | Female | Isabella |
+| `bm_george` | British | Male | George |
+| `bm_lewis` | British | Male | Lewis |
+
+Use `--lang a` for American English and `--lang b` for British English (default: `a`).
 
 ## CLI Reference
 
@@ -101,12 +139,15 @@ Voice models are cached in `~/.local/share/InkshadePDF/voices/`.
 narrate input.pdf [output.mp3] [options]
 ```
 
+The second positional argument can also be a page range (e.g. `narrate paper.pdf 5-20`) — the output path then defaults to `paper.mp3`.
+
 ### Voice
 
 | Flag | Default | Description |
 |---|---|---|
-| `--voice NAME` | `en_US-lessac-medium` | Piper voice model |
-| `--list-voices` | | List voices and exit |
+| `--voice ID` | `af_heart` | Kokoro voice ID |
+| `--lang CODE` | `a` | `a` = American English, `b` = British English |
+| `--list-voices` | | List available voices and exit |
 
 ### Page Range
 
@@ -152,7 +193,7 @@ narrate input.pdf [output.mp3] [options]
 |---|---|---|
 | `-v`, `--verbose` | `1` | `0`=quiet, `1`=normal, `2`=debug |
 | `--no-progress` | | Disable tqdm progress bars |
-| `--debug-layout DIR` | | Save layout overlay images |
+| `--debug-layout DIR` | | Save layout overlay images to DIR |
 | `--debug-script` | | Print reading script, skip audio |
 
 ## Project Structure
@@ -166,7 +207,7 @@ inkshade-narrate/
 │   └── page/
 │       ├── models.py                  # BlockInfo, LineInfo, SpanInfo, CharacterInfo
 │       ├── page_model.py              # Lazy-loaded page wrapper
-│       └── text_layer.py              # Character-level text extraction
+│       └── text_layer.py             # Character-level text extraction
 │
 ├── narration/
 │   ├── pipeline.py                    # Orchestrator: PDF → audio
@@ -182,9 +223,11 @@ inkshade-narrate/
 │   │   ├── text_preprocessor.py       # Cleans text, expands abbreviations, splits sentences
 │   │   └── models.py                  # TextRole, ProsodyRule, ReadingInstruction
 │   ├── tts/
-│   │   ├── engine.py                  # Piper TTS wrapper with speed control
+│   │   ├── kokoro_engine.py           # Kokoro TTS wrapper with speed control
+│   │   ├── base_engine.py             # Abstract TTS engine interface
 │   │   ├── audio_builder.py           # WAV chunk concatenation and MP3 export
-│   │   └── model_manager.py           # Voice model download and caching
+│   │   ├── model_manager.py           # Voice metadata and listing
+│   │   └── time_stretch.py            # Audio time-stretching utilities
 │   └── utils/
 │       └── pdf_adapter.py             # Qt-free PDF access (stateless + PDFAdapter class)
 │
@@ -227,7 +270,7 @@ Raw PDF text is cleaned before synthesis to improve TTS output:
 - **Hyphenation** — Line-break hyphens are rejoined (`"com-\nputer"` → `"computer"`).
 - **Abbreviations** — Common abbreviations are expanded (`"Fig."` → `"Figure"`, `"e.g."` → `"for example"`, `"et al."` → `"and others"`).
 - **URLs** — Replaced with `"link to [domain]"`.
-- **Citation markers** — `[1]`, `[2,3]` patterns are stripped (configurable).
+- **Citation markers** — `[1]`, `[2,3]` patterns are stripped (configurable with `--keep-references`).
 - **Dashes and ellipses** — Normalised for consistent TTS pronunciation.
 
 The abbreviation dictionary and all preprocessing rules are in `narration/script/text_preprocessor.py`.
