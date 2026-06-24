@@ -58,13 +58,13 @@ avoid that:
 
 ```bash
 # CPU only (no CUDA, much smaller install)
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 # CUDA 12.1
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
 # CUDA 11.8
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 ```
 
 ### Install
@@ -77,15 +77,7 @@ cd Inkshade-PDF-TTS
 
 # After pre-installing torch above:
 pip install .
-
-# Or, to explicitly pull in CUDA torch as part of the install:
-pip install .[cuda]
 ```
-
-`pip install .` covers all non-torch dependencies. `.[cuda]` additionally
-pins `torch>=2.0.0` and `torchaudio>=2.0.0` — useful if you want the extras
-to document the CUDA requirement, but you still need to point pip at the right
-wheel index (see above).
 
 ### FFmpeg
 
