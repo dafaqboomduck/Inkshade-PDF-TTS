@@ -7,6 +7,7 @@ engine and audio builder consume sequentially.
 
 from typing import Dict, List, Optional, Tuple
 
+from core.page.models import CharacterInfo
 from narration.layout.models import ClassifiedBlock, LayoutLabel
 
 from .models import (
@@ -16,7 +17,129 @@ from .models import (
     TextRole,
 )
 from .prosody_rules import SENTENCE_PAUSE, get_prosody
-from .text_preprocessor import preprocess_block
+from .text_preprocessor import clean_text, split_sentences
+
+
+def _build_text_to_char_map(text: str, num_chars: int) -> List[int]:
+    """
+    Build a mapping from text positions to character indices.
+
+    block.text contains newlines between lines, but block.all_characters
+    does NOT include CharacterInfo for those newlines. This function
+    creates a map where map[text_pos] = char_index, or -1 for newlines.
+    """
+    char_map = []
+    char_idx = 0
+
+    for c in text:
+        if c == '\n':
+            char_map.append(-1)  # No CharacterInfo for newlines
+        else:
+            if char_idx < num_chars:
+                char_map.append(char_idx)
+                char_idx += 1
+            else:
+                char_map.append(-1)  # Out of bounds safety
+
+    return char_map
+
+
+def _find_sentence_boundaries_in_original(
+    original_text: str,
+    cleaned_sentences: List[str],
+) -> List[Tuple[int, int]]:
+    """
+    Find where each cleaned sentence starts and ends in the original text.
+
+    Returns list of (start_pos, end_pos) tuples in the original text.
+    Uses fuzzy matching to handle preprocessing differences.
+    """
+    boundaries = []
+    search_start = 0
+
+    for sentence in cleaned_sentences:
+        if not sentence.strip():
+            continue
+
+        # Extract key anchor words from the sentence (first and last few words)
+        words = sentence.split()
+        if not words:
+            continue
+
+        # Find where this sentence starts in the original text
+        # Look for the first word (which should be relatively unchanged)
+        first_word = words[0].strip('.,!?;:"\'()[]')
+
+        # Search for the first word in the remaining original text
+        search_region = original_text[search_start:]
+
+        # Try exact match first
+        first_word_pos = -1
+        for i, c in enumerate(search_region):
+            # Check if this position starts with our target word
+            remaining = search_region[i:]
+            # Skip whitespace/newlines at start
+            stripped_remaining = remaining.lstrip()
+            skip_count = len(remaining) - len(stripped_remaining)
+
+            if stripped_remaining.lower().startswith(first_word.lower()):
+                first_word_pos = i + skip_count
+                break
+
+        if first_word_pos == -1:
+            # Fallback: just use next available position
+            first_word_pos = 0
+
+        sentence_start = search_start + first_word_pos
+
+        # Find where this sentence ends
+        # Look for sentence-ending punctuation followed by the start of next sentence
+        # or end of text
+        search_from = sentence_start
+        sentence_end = len(original_text)  # Default to end
+
+        # Look for ., !, ? followed by space and uppercase or end
+        for i in range(search_from, len(original_text)):
+            c = original_text[i]
+            if c in '.!?':
+                # Check if this looks like end of sentence
+                # (not an abbreviation)
+                if i + 1 >= len(original_text):
+                    sentence_end = i + 1
+                    break
+                next_char = original_text[i + 1]
+                if next_char.isspace():
+                    # Check what follows the whitespace
+                    j = i + 2
+                    while j < len(original_text) and original_text[j].isspace():
+                        j += 1
+                    if j >= len(original_text) or original_text[j].isupper() or original_text[j] == '"':
+                        sentence_end = i + 1
+                        break
+
+        boundaries.append((sentence_start, sentence_end))
+        search_start = sentence_end
+
+    return boundaries
+
+
+def _get_chars_for_range(
+    start: int,
+    end: int,
+    text_to_char_map: List[int],
+    all_chars: List[CharacterInfo],
+) -> List[CharacterInfo]:
+    """Extract characters for a text range using the position map."""
+    chars = []
+    seen_indices = set()
+
+    for text_pos in range(start, min(end, len(text_to_char_map))):
+        char_idx = text_to_char_map[text_pos]
+        if char_idx >= 0 and char_idx < len(all_chars) and char_idx not in seen_indices:
+            chars.append(all_chars[char_idx])
+            seen_indices.add(char_idx)
+
+    return chars
 
 
 def _block_sort_key(cb: ClassifiedBlock) -> Tuple[float, float]:
@@ -75,18 +198,47 @@ def build_page_script(
         # Decide whether to split into sentences
         split = role == TextRole.BODY
 
-        segments = preprocess_block(
-            cb.block.text,
-            split=split,
-            strip_references=strip_references,
-        )
+        # Get the original text and all characters
+        original_text = cb.block.text
+        block_chars = cb.block.all_characters
+
+        # Build position map: text positions → character indices
+        # This accounts for newlines in text that have no CharacterInfo
+        text_to_char_map = _build_text_to_char_map(original_text, len(block_chars))
+
+        # Clean the text and split into sentences
+        cleaned_text = clean_text(original_text, strip_references=strip_references)
+        if not cleaned_text.strip():
+            continue
+
+        if split:
+            segments = split_sentences(cleaned_text)
+        else:
+            segments = [cleaned_text]
 
         if not segments:
             continue
 
+        # Find where each sentence starts/ends in the original text
+        # This allows accurate character mapping despite preprocessing changes
+        sentence_boundaries = _find_sentence_boundaries_in_original(
+            original_text, segments
+        )
+
+        # Build instructions with properly aligned characters
         for i, segment_text in enumerate(segments):
             if not segment_text.strip():
                 continue
+
+            # Get character range for this sentence from boundaries
+            if i < len(sentence_boundaries):
+                start_pos, end_pos = sentence_boundaries[i]
+                seg_chars = _get_chars_for_range(
+                    start_pos, end_pos, text_to_char_map, block_chars
+                )
+            else:
+                # Fallback: use all remaining characters
+                seg_chars = block_chars[:]
 
             # For multi-sentence body blocks: first sentence gets the
             # block's pause_before, last gets pause_after, middle
@@ -116,7 +268,7 @@ def build_page_script(
                     prosody=seg_prosody,
                     page_index=page_index,
                     block_index=block_idx,
-                    characters=cb.block.all_characters,
+                    characters=seg_chars,
                 )
             )
 

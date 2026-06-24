@@ -426,19 +426,22 @@ class NarrationPipeline:
                 # -- Phase 3: TTS for this page ------------------------
                 t0 = time.perf_counter()
                 page_builder = AudioBuilder(sample_rate=engine.sample_rate)
-                speakable = [inst for inst in page_script if not inst.should_skip]
+                # Build list of speakable instructions with their original indices
+                speakable_with_idx = [
+                    (i, inst) for i, inst in enumerate(page_script) if not inst.should_skip
+                ]
                 timing_offsets: List[Tuple[float, float, int]] = []
                 cumulative_ms: float = 0.0
                 spoken = 0
                 skipped = 0
                 page_words = 0
 
-                for seg_idx, inst in enumerate(speakable):
+                for seg_idx, (original_idx, inst) in enumerate(speakable_with_idx):
                     if cb.on_cancelled and cb.on_cancelled():
                         break
 
                     if cb.on_segment:
-                        cb.on_segment(seg_idx, len(speakable))
+                        cb.on_segment(seg_idx, len(speakable_with_idx))
 
                     p = inst.prosody
 
@@ -475,7 +478,8 @@ class NarrationPipeline:
                         page_builder.add_silence(p.pause_after)
                         cumulative_ms += silence_ms
 
-                    timing_offsets.append((start_ms, end_ms, seg_idx))
+                    # Store the original page_script index for correct highlight mapping
+                    timing_offsets.append((start_ms, end_ms, original_idx))
 
                 t_synthesis += time.perf_counter() - t0
 

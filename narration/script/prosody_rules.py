@@ -14,33 +14,33 @@ from .models import ProsodyRule, TextRole
 
 DEFAULT_PROSODY: dict[TextRole, ProsodyRule] = {
     TextRole.TITLE: ProsodyRule(
-        pause_before=1.5,
-        pause_after=1.2,
-        speed_factor=0.85,
+        pause_before=1.8,
+        pause_after=1.4,
+        speed_factor=0.82,
     ),
     TextRole.SECTION_HEADER: ProsodyRule(
-        pause_before=1.2,
-        pause_after=0.8,
-        speed_factor=0.88,
+        pause_before=1.4,
+        pause_after=1.0,
+        speed_factor=0.85,
     ),
     TextRole.BODY: ProsodyRule(
         pause_before=0.0,  # sentence-level pauses handled inline
-        pause_after=0.3,  # paragraph gap
+        pause_after=0.35,  # paragraph gap
         speed_factor=1.0,
     ),
     TextRole.LIST_ITEM: ProsodyRule(
-        pause_before=0.2,
-        pause_after=0.25,
-        speed_factor=0.97,
-    ),
-    TextRole.CAPTION: ProsodyRule(
-        pause_before=0.6,
-        pause_after=0.6,
+        pause_before=0.25,
+        pause_after=0.3,
         speed_factor=0.95,
     ),
+    TextRole.CAPTION: ProsodyRule(
+        pause_before=0.7,
+        pause_after=0.7,
+        speed_factor=0.92,
+    ),
     TextRole.FOOTNOTE: ProsodyRule(
-        pause_before=0.8,
-        pause_after=0.5,
+        pause_before=0.9,
+        pause_after=0.6,
         speed_factor=1.05,
     ),
     TextRole.FORMULA: ProsodyRule(
@@ -48,7 +48,7 @@ DEFAULT_PROSODY: dict[TextRole, ProsodyRule] = {
     ),
     TextRole.PAGE_TRANSITION: ProsodyRule(
         pause_before=0.0,
-        pause_after=1.0,
+        pause_after=1.2,
         skip=False,  # silence-only, no speech
         speed_factor=1.0,
     ),
@@ -58,11 +58,11 @@ DEFAULT_PROSODY: dict[TextRole, ProsodyRule] = {
 }
 
 # Pause inserted between sentences within a body paragraph
-SENTENCE_PAUSE: float = 0.15
+SENTENCE_PAUSE: float = 0.20
 
 # Extra pauses after specific punctuation (added to sentence pause)
-COLON_PAUSE: float = 0.10
-SEMICOLON_PAUSE: float = 0.08
+COLON_PAUSE: float = 0.12
+SEMICOLON_PAUSE: float = 0.10
 
 
 def get_prosody(
