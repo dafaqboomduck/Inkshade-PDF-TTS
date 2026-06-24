@@ -77,7 +77,12 @@ cd Inkshade-PDF-TTS
 
 # After pre-installing torch above:
 pip install .
+
+# Download the spaCy English model required by Kokoro's G2P engine
+python -m spacy download en_core_web_sm
 ```
+
+The spaCy model must be downloaded via `python -m spacy download` — installing it directly with pip can leave it in a broken state.
 
 ### FFmpeg
 
