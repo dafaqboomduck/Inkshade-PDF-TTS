@@ -228,17 +228,27 @@ inkshade-narrate/
 │   └── utils/
 │       └── pdf_adapter.py             # Qt-free PDF access (stateless + PDFAdapter class)
 │
-├── tests/
-│   ├── test_pdf_adapter.py            # Text extraction validation
-│   ├── test_layout_detector.py        # YOLO detection visual test
-│   ├── test_classifier.py             # Full classification pipeline visual test
-│   ├── test_reading_script.py         # Script preview (no audio)
-│   ├── test_tts_engine.py             # TTS synthesis + timing
-│   └── test_audio_builder.py          # Audio assembly + export
+├── tests/                            # Automated unit tests (pytest, no PDF/model needed)
+│   ├── conftest.py                    # Shared factories for blocks, regions, WAV bytes
+│   ├── test_block_matcher.py          # IoU / overlap geometry + region→block matching
+│   ├── test_layout_models.py          # LayoutLabel / LayoutRegion / ClassifiedBlock
+│   ├── test_text_preprocessor.py      # Cleaning, abbreviation expansion, sentence split
+│   ├── test_prosody_rules.py          # Prosody multipliers and label→role mapping
+│   ├── test_script_builder.py         # Reading-script assembly and page transitions
+│   ├── test_feature_refiner.py        # Typographic heuristics + running header/footer
+│   ├── test_audio_builder_assembly.py # Silence/speech assembly + post-processing math
+│   └── test_tts_wav.py                # WAV container helpers + Kokoro voice metadata
 │
-├── verify_core.py                     # Smoke test for core imports
-├── models/                            # YOLO weights (gitignored)
-└── debug/                             # Debug output (gitignored)
+├── debug/                            # Manual debug scripts (run a real PDF/model end-to-end)
+│   ├── debug_pdf_adapter.py           # Text extraction validation
+│   ├── debug_layout_detector.py       # YOLO detection visual overlays
+│   ├── debug_classifier.py            # Full classification pipeline overlays
+│   ├── debug_reading_script.py        # Script preview (no audio)
+│   ├── debug_tts_engine.py            # TTS synthesis + timing
+│   └── debug_audio_builder.py         # Audio assembly + export
+│                                      #   (generated images/audio also land here, gitignored)
+│
+└── models/                           # YOLO weights (gitignored)
 ```
 
 ## Prosody Defaults
@@ -247,18 +257,18 @@ Each text role maps to tuneable prosody parameters. These can be adjusted global
 
 | Role | Pause Before | Pause After | Speed | Behaviour |
 |---|---|---|---|---|
-| Title | 1.5s | 1.2s | 0.85× | Slow, deliberate |
-| Section Header | 1.2s | 0.8s | 0.88× | Slightly slow |
-| Body | — | 0.3s | 1.00× | Normal pace |
-| List Item | 0.2s | 0.25s | 0.97× | Slight pause between items |
-| Caption | 0.6s | 0.6s | 0.95× | Set apart from body |
-| Footnote | 0.8s | 0.5s | 1.05× | Slightly faster |
+| Title | 1.8s | 1.4s | 0.82× | Slow, deliberate |
+| Section Header | 1.4s | 1.0s | 0.85× | Slightly slow |
+| Body | — | 0.35s | 1.00× | Normal pace |
+| List Item | 0.25s | 0.3s | 0.95× | Slight pause between items |
+| Caption | 0.7s | 0.7s | 0.92× | Set apart from body |
+| Footnote | 0.9s | 0.6s | 1.05× | Slightly faster |
 | Formula | — | — | — | Skipped |
 | Page Header/Footer | — | — | — | Skipped |
 | Picture / Table | — | — | — | Skipped |
 | Page Transition | — | 1.0s | — | Silence between pages |
 
-Inter-sentence pause within body paragraphs: **0.15s**.
+Inter-sentence pause within body paragraphs: **0.20s**.
 
 ## Text Preprocessing
 
@@ -274,29 +284,42 @@ The abbreviation dictionary and all preprocessing rules are in `narration/script
 
 ## Tests
 
-Each test module is a standalone script that validates one pipeline stage. Run them with `python -m`:
+### Unit tests
+
+The pure logic (layout geometry, classification heuristics, text preprocessing,
+prosody, script assembly, audio math, WAV helpers) is covered by a `pytest`
+suite that needs **no PDF, no model download, and no network**:
 
 ```bash
-# Verify core imports work without Qt
-python verify_core.py sample.pdf
+pip install pytest
+pytest
+```
 
+### Manual debug scripts
+
+The `debug/` directory holds standalone scripts that exercise the *real*
+pipeline end-to-end — they download/run the YOLO and Kokoro models and write
+visual overlays or audio you can inspect by hand. Run them with `python -m`
+from the project root (output lands under `debug/`):
+
+```bash
 # Text extraction
-python -m tests.test_pdf_adapter sample.pdf
+python -m debug.debug_pdf_adapter sample.pdf
 
 # Layout detection (saves annotated images to debug/layout/)
-python -m tests.test_layout_detector sample.pdf --pages 0-4
+python -m debug.debug_layout_detector sample.pdf --pages 0-4
 
 # Full classification (saves overlay images to debug/classified/)
-python -m tests.test_classifier sample.pdf --pages 0-4
+python -m debug.debug_classifier sample.pdf --pages 0-4
 
 # Reading script preview (no audio)
-python -m tests.test_reading_script sample.pdf --pages 0-4
+python -m debug.debug_reading_script sample.pdf --pages 0-4
 
 # TTS synthesis timing (saves WAV samples to debug/tts/)
-python -m tests.test_tts_engine
+python -m debug.debug_tts_engine
 
 # Audio assembly (saves test MP3/WAV to debug/audio/)
-python -m tests.test_audio_builder
+python -m debug.debug_audio_builder
 ```
 
 ## Future Work
