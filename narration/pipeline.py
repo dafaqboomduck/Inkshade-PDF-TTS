@@ -250,6 +250,10 @@ class NarrationPipeline:
                 voice=cfg.kokoro_voice,
                 lang_code=cfg.kokoro_lang_code,
             )
+            # Load the pipeline (and spaCy G2P model) now so a broken model
+            # install raises one clear, fatal error here instead of being
+            # swallowed and re-logged for every segment during synthesis.
+            self._engine.warmup()
             logger.info("Engine ready: %s", self._engine)
         return self._engine
 

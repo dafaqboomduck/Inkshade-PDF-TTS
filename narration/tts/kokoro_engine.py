@@ -96,8 +96,35 @@ class KokoroEngine(BaseTTSEngine):
 
         from kokoro import KPipeline
 
-        self._pipeline = KPipeline(lang_code=self._lang_code)
+        try:
+            self._pipeline = KPipeline(lang_code=self._lang_code)
+        except AttributeError as e:
+            # spaCy's load_model_from_package() does
+            #   importlib.import_module("en_core_web_sm").load(...)
+            # so a model that imports but exposes no `.load` surfaces as
+            # "module en_core_web_sm has no attribute 'load'". This means the
+            # model is installed-but-broken: a partial `pip install`, or an
+            # empty/namespace `en_core_web_sm` directory shadowing the real
+            # package on sys.path.
+            if "en_core_web_sm" in str(e):
+                raise RuntimeError(
+                    "The spaCy model 'en_core_web_sm' is installed but broken."
+                    "Reinstall it cleanly in the current environment:\n"
+                    "    pip uninstall -y en_core_web_sm\n"
+                    "    python -m spacy download en_core_web_sm"
+                ) from e
+            raise
         logger.info("Kokoro pipeline ready")
+
+    def warmup(self) -> None:
+        """
+        Eagerly load the underlying pipeline (and its spaCy G2P model).
+
+        Call this once before synthesising so an install problem with the
+        spaCy model fails fast with a clear error, rather than being caught
+        and re-logged once per segment during synthesis.
+        """
+        self._ensure_pipeline()
 
     @property
     def sample_rate(self) -> int:
@@ -138,6 +165,7 @@ class KokoroEngine(BaseTTSEngine):
             return self.generate_silence(0.0)
 
         self._ensure_pipeline()
+        assert self._pipeline is not None, "Kokoro pipeline not loaded"
 
         speed = max(0.1, speed_factor)
 
