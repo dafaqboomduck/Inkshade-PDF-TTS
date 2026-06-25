@@ -1,6 +1,15 @@
-__pycache__
+# Python cache files
+__pycache__/
+.pytest_cache/
+.py[cod]
+
+# Debug and build files
 debug/
-models/
 build/
 *.egg-info
+
+# Models dir
+models/
+
+# VS Code settings
 .vscode/
