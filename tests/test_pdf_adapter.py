@@ -21,7 +21,7 @@ from narration.utils.pdf_adapter import (
 )
 
 
-def test_single_functions(pdf_path: str, page_idx: int = 0):
+def check_single_functions(pdf_path: str, page_idx: int = 0):
     """Test the standalone (stateless) helper functions."""
     sep = "-" * 60
 
@@ -63,7 +63,7 @@ def test_single_functions(pdf_path: str, page_idx: int = 0):
     print(sep)
 
 
-def test_adapter_class(pdf_path: str):
+def check_adapter_class(pdf_path: str):
     """Test the stateful PDFAdapter (keeps document open)."""
     sep = "-" * 60
 
@@ -82,7 +82,7 @@ def test_adapter_class(pdf_path: str):
     print(sep)
 
 
-def test_extract_all(pdf_path: str):
+def check_extract_all(pdf_path: str):
     """Test extracting every page (can be slow for large docs)."""
     sep = "-" * 60
     count = get_page_count(pdf_path)
@@ -115,8 +115,8 @@ if __name__ == "__main__":
     print(f"Target page: {page}")
     print("=" * 60)
 
-    test_single_functions(pdf_file, page)
-    test_adapter_class(pdf_file)
-    test_extract_all(pdf_file)
+    check_single_functions(pdf_file, page)
+    check_adapter_class(pdf_file)
+    check_extract_all(pdf_file)
 
     print("All tests passed.")
