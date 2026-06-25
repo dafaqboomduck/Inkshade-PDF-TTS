@@ -5,7 +5,7 @@ Runs the full pipeline up to script generation and prints a
 human-readable preview — no audio synthesis.
 
 Usage:
-    python -m tests.test_reading_script path/to/test.pdf [--pages 0-4]
+    python -m debug.debug_reading_script path/to/test.pdf [--pages 0-4]
 """
 
 import argparse

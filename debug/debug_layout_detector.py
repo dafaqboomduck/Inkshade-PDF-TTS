@@ -5,7 +5,7 @@ Runs YOLO detection on one or more PDF pages, prints results, and
 saves annotated debug images with color-coded bounding boxes.
 
 Usage:
-    python -m tests.test_layout_detector path/to/test.pdf [--pages 0-4] [--confidence 0.35]
+    python -m debug.debug_layout_detector path/to/test.pdf [--pages 0-4] [--confidence 0.35]
 """
 
 import argparse

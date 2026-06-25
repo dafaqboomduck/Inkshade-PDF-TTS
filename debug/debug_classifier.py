@@ -5,7 +5,7 @@ Runs YOLO detection + block matching + feature refinement on PDF pages
 and saves colour-coded overlays showing the final label per text block.
 
 Usage:
-    python -m tests.test_classifier path/to/test.pdf [--pages 0-9] [--confidence 0.35]
+    python -m debug.debug_classifier path/to/test.pdf [--pages 0-9] [--confidence 0.35]
 """
 
 import argparse

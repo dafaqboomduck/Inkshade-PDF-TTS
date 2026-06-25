@@ -3,8 +3,12 @@ __pycache__/
 .pytest_cache/
 .py[cod]
 
-# Debug and build files
-debug/
+# Debug: keep the manual debug scripts, 
+# ignore their generated artifacts
+debug/*
+!debug/*.py
+
+# Build files
 build/
 *.egg-info
 

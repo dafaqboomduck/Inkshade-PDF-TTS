@@ -5,7 +5,7 @@ Synthesises a few phrases, assembles them with silence gaps,
 enhances, normalizes, and exports as both WAV and MP3.
 
 Usage:
-    python -m tests.test_audio_builder [--voice af_heart] [--lang a]
+    python -m debug.debug_audio_builder [--voice af_heart] [--lang a]
 """
 
 import argparse

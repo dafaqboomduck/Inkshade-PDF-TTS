@@ -2,7 +2,7 @@
 Quick validation script for the PDF adapter (Task 1.5).
 
 Usage:
-    python -m tests.test_pdf_adapter path/to/test.pdf [page_index]
+    python -m debug.debug_pdf_adapter path/to/test.pdf [page_index]
 
 Runs all four adapter functions and prints diagnostics.
 """
@@ -105,7 +105,7 @@ def check_extract_all(pdf_path: str):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python -m tests.test_pdf_adapter <pdf_path> [page_index]")
+        print("Usage: python -m debug.debug_pdf_adapter <pdf_path> [page_index]")
         sys.exit(1)
 
     pdf_file = sys.argv[1]

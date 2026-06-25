@@ -2,7 +2,7 @@
 Test the Kokoro TTS engine (synthesise test phrases at different speeds).
 
 Usage:
-    python -m tests.test_tts_engine [--voice af_heart] [--lang a]
+    python -m debug.debug_tts_engine [--voice af_heart] [--lang a]
 """
 
 import argparse
