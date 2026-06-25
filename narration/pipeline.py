@@ -41,6 +41,7 @@ from narration.layout.feature_refiner import (
     refine_classifications,
 )
 from narration.layout.models import ClassifiedBlock, LayoutLabel
+from narration.layout.visualize import draw_classified_blocks
 from narration.script.models import ReadingInstruction, TextRole
 from narration.script.reading_script import (
     build_document_script,
@@ -854,17 +855,7 @@ def _save_debug_layouts(
 ) -> None:
     """
     Save colour-coded classification overlay images for visual review.
-
-    Imports the drawing function from the debug scripts.  Logs a warning
-    and returns silently if the import fails (e.g. when running outside
-    the project root, where ``debug/`` is not importable).
     """
-    try:
-        from debug.debug_classifier import draw_classified_blocks
-    except ImportError:
-        logger.warning("Could not import debug drawing — skipping layout images")
-        return
-
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
