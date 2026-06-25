@@ -3,3 +3,4 @@ debug/
 models/
 build/
 *.egg-info
+.vscode/
