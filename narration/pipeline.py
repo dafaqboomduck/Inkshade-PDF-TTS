@@ -855,11 +855,12 @@ def _save_debug_layouts(
     """
     Save colour-coded classification overlay images for visual review.
 
-    Imports the drawing function from the test suite.  Logs a warning
-    and returns silently if the import fails.
+    Imports the drawing function from the debug scripts.  Logs a warning
+    and returns silently if the import fails (e.g. when running outside
+    the project root, where ``debug/`` is not importable).
     """
     try:
-        from tests.test_classifier import draw_classified_blocks
+        from debug.debug_classifier import draw_classified_blocks
     except ImportError:
         logger.warning("Could not import debug drawing — skipping layout images")
         return
